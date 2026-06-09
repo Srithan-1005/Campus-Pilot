@@ -1,0 +1,193 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// User representation (Common for students, admins, teachers, and parents)
+model User {
+  id            String    @id @default(uuid())
+  fullName      String    @default("")
+  email         String    @unique
+  phone         String?   @unique
+  passwordHash  String
+  role          String    @default("STUDENT") // STUDENT, ADMIN, SUPER_ADMIN, TEACHER, PARENT
+  status        String    @default("ACTIVE")  // ACTIVE, INACTIVE, SUSPENDED, DELETED
+  createdBy     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  studentProfile StudentProfile?
+  adminProfile   AdminProfile?
+  teacherProfile TeacherProfile?
+  parentProfile  ParentProfile?
+}
+
+// Student Profile details
+model StudentProfile {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studentCode     String   @unique
+  fullName        String
+  departmentId    String
+  department      Department @relation(fields: [departmentId], references: [id])
+  courseId        String   // e.g. B.Tech, M.Tech, MBA
+  currentSemester Int      @default(1)
+  cgpa            Float?   @default(0.0)
+  
+  // New columns
+  section         String?  @default("A")
+  admissionYear   Int?     @default(2023)
+  guardianName    String?  @default("")
+  guardianPhone   String?  @default("")
+
+  attendanceRecords AttendanceRecord[]
+  feeAssignments    FeeAssignment[]
+  supportTickets    SupportTicket[]
+  bookRequests      BookRequest[]
+  canteenOrders     CanteenOrder[]
+  parentProfiles    ParentProfile[]
+}
+
+// Teacher Profile details
+model TeacherProfile {
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  employeeId       String   @unique
+  departmentId     String   // Faculty department code/id
+  designation      String   // e.g., Assistant Professor, Lecturer
+  subjectsAssigned String   // JSON or comma-separated list of courses
+}
+
+// Admin Profile details
+model AdminProfile {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName        String
+  department      String   // e.g. Academic Affairs, Finance, Operations
+  roleTitle       String   // e.g. Dean, Registrar, Canteen Manager
+  employeeId      String?  @unique
+  designation     String?
+  permissionsJson String?  // JSON list of permissions
+}
+
+// Parent Profile details
+model ParentProfile {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  linkedStudentId String
+  student         StudentProfile @relation(fields: [linkedStudentId], references: [id], onDelete: Cascade)
+  relationship    String   // FATHER, MOTHER, GUARDIAN
+  occupation      String?
+}
+
+// Access Control roles
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique // e.g., STUDENT, TEACHER, ADMIN, SUPER_ADMIN
+  description String?
+}
+
+// Access Control permissions
+model Permission {
+  id          String   @id @default(uuid())
+  name        String   @unique // e.g., CREATE_USER, EDIT_USER
+  module      String
+  action      String
+}
+
+// Role Permissions link table
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  @@id([roleId, permissionId])
+}
+
+// Audit logs
+model AuditLog {
+  id           String   @id @default(uuid())
+  actorUserId  String
+  action       String
+  targetUserId String?
+  metadataJson String?
+  createdAt    DateTime @default(now())
+}
+
+// Academic Departments
+model Department {
+  id              String   @id @default(uuid())
+  name            String
+  code            String   @unique // e.g. CSE, ECE, ME
+  students        StudentProfile[]
+}
+
+// Attendance Record
+model AttendanceRecord {
+  id              String   @id @default(uuid())
+  studentId       String
+  student         StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date            DateTime
+  status          String   // PRESENT, ABSENT, LATE
+  subjectId       String   // e.g., CS-101, MA-102
+  subjectName     String   // e.g., Data Structures, Engineering Mathematics
+}
+
+// Fee Assignment and tracking
+model FeeAssignment {
+  id              String   @id @default(uuid())
+  studentId       String
+  student         StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  feeType         String   // Tuition, Hostel, Exam, Library
+  amountDue       Float
+  amountPaid      Float    @default(0)
+  dueDate         DateTime
+  status          String   // PENDING, PAID, PARTIAL
+  createdAt       DateTime @default(now())
+}
+
+// Support & Grievance Tickets
+model SupportTicket {
+  id              String   @id @default(uuid())
+  studentId       String
+  student         StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  title           String
+  description     String
+  category        String   // ACADEMIC, FINANCE, HOSTEL, TRANSPORT, OTHER
+  priority        String   // LOW, MEDIUM, HIGH
+  status          String   // OPEN, IN_PROGRESS, RESOLVED
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  resolutionNotes String?
+}
+
+// Library Book Requests
+model BookRequest {
+  id              String   @id @default(uuid())
+  studentId       String
+  student         StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  bookTitle       String
+  author          String
+  status          String   // REQUESTED, ISSUED, OVERDUE, RETURNED
+  dueDate         DateTime
+  createdAt       DateTime @default(now())
+}
+
+// Canteen Orders
+model CanteenOrder {
+  id              String   @id @default(uuid())
+  studentId       String
+  student         StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  itemsJson       String   // JSON string representing the items ordered
+  total           Float
+  status          String   // PENDING, PREPARING, READY, COMPLETED
+  createdAt       DateTime @default(now())
+}
